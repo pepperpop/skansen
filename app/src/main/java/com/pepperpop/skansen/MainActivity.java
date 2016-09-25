@@ -1,8 +1,11 @@
 package com.pepperpop.skansen;
 
+import android.content.Intent;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.util.Log;
 import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
@@ -12,14 +15,55 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.TextView;
+
+import com.google.android.gms.auth.api.Auth;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 
 public class MainActivity extends AppCompatActivity
     implements NavigationView.OnNavigationItemSelectedListener {
 
+  private static final String TAG = "MainActivity";
+
+  private GoogleApiClient mGoogleApiClient;
+
+  // Firebase Auth
+  private FirebaseAuth mFirebaseAuth;
+  private User mUser;
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
+    mGoogleApiClient = new GoogleApiClient.Builder(this)
+        .enableAutoManage(
+            this /* FragmentActivity */,
+            new GoogleApiClient.OnConnectionFailedListener() {
+              @Override
+              public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+                Log.d(TAG, "onConnectionFailed:" + connectionResult);
+              }
+            })
+        .addApi(Auth.GOOGLE_SIGN_IN_API)
+        .build();
+
+    // Initialize Firebase Auth
+    mFirebaseAuth = FirebaseAuth.getInstance();
+    FirebaseUser firebaseUser = mFirebaseAuth.getCurrentUser();
+    if (firebaseUser == null) {
+      // Not signed in, launch the Sign In activity
+      startActivity(new Intent(this, SignInActivity.class));
+      finish();
+      return;
+    } else {
+      mUser = new User(firebaseUser);
+    }
+
     setContentView(R.layout.activity_main);
+
     Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
 
@@ -40,6 +84,14 @@ public class MainActivity extends AppCompatActivity
 
     NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
     navigationView.setNavigationItemSelectedListener(this);
+
+    View headerLayout = navigationView.getHeaderView(0);
+    TextView userNameTextView =
+        (TextView) headerLayout.findViewById(R.id.nav_header_user_name_textview);
+    userNameTextView.setText(mUser.getDisplayName());
+    TextView userEmailTextView =
+        (TextView) headerLayout.findViewById(R.id.nav_header_user_email_textview);
+    userEmailTextView.setText(mUser.getEmail());
   }
 
   @Override
@@ -92,6 +144,11 @@ public class MainActivity extends AppCompatActivity
 
     } else if (id == R.id.nav_send) {
 
+    } else if (id == R.id.nav_sign_out) {
+      mFirebaseAuth.signOut();
+      Auth.GoogleSignInApi.signOut(mGoogleApiClient);
+      this.mUser = null;
+      startActivity(new Intent(this, SignInActivity.class));
     }
 
     DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
